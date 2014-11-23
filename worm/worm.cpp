@@ -9,7 +9,8 @@ const int BLANK = 255;
 const int BLACK = 0;
 const double INF = 1e100;
 const double MIN_WORM_SIZE_RATE = 0.1;
-const double MIN_WORM_SEG_RATE = 0.2;
+const double MIN_WORM_SEG_RATE = 0.15;
+const int BLUR_EFFECT_GUID = 27;
 
 typedef vector<int> vi;
 typedef vector<vi> vii;
@@ -726,7 +727,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	imwrite("gray.bmp",img);
 	img.countRegion(6);
-	medianBlur(img, img, 27);
+	medianBlur(img, img, BLUR_EFFECT_GUID);
 	imwrite("blur.bmp",img);
 	WormMat newimg = img.extract(6,1,3);
 	namedWindow("image", CV_WINDOW_AUTOSIZE);
