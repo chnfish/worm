@@ -9,7 +9,7 @@ const int BLANK = 255;
 const int BLACK = 0;
 const double INF = 1e100;
 const double MIN_WORM_SIZE_RATE = 0.1;
-const double MIN_WORM_SEG_RATE = 0.15;
+const double MIN_WORM_SEG_RATE = 0.2;
 
 typedef vector<int> vi;
 typedef vector<vi> vii;
@@ -45,10 +45,15 @@ public:
 class Edge
 {
 public:
-	Edge(int x, int y, int length) :x(x), y(y), length(length), alive(true), father(-1)
+	Edge(int x, int y, int length, bool alive, int father, bool xused, bool yused) 
+		:x(x), y(y), length(length), alive(alive), father(father), xused(xused), yused(yused)
+	{
+	}
+	Edge(int x, int y, int length) :x(x), y(y), length(length), alive(true), father(-1), xused(false), yused(false)
 	{
 	}
 	int length, x, y;
+	bool xused, yused;
 	int father;
 	bool alive;
 };
@@ -62,6 +67,22 @@ public:
 	vector <Edgelist> eList;
 	vector <Edge> edges;
 	vector <Point> nodes;
+	bool findEdge(int x, int y, Edge* e) {
+		for (vector  <Edge>::iterator it = edges.begin(); it != edges.end(); it++)
+			if ( ((it->x == x) && (it->y == y)) || 
+				((it->x == y) && (it->y == x)) ) {
+					e = &(*it);
+					return true;
+			}
+		return false;
+	}
+	int addNode(Point &p)
+	{
+		nodes.push_back(p);
+		n++;
+		eList.push_back(Edgelist());
+		return nodes.size() - 1;
+	}
 	int addNode(int x, int y)
 	{
 		nodes.push_back(Point(x, y));
@@ -87,7 +108,7 @@ public:
 		m++;
 		return num;
 	}
-	void removeEdge(Edge &tedge)
+	void falselyRemoveEdge(Edge &tedge)
 	{
 		if (tedge.alive)
 		{
@@ -104,12 +125,12 @@ public:
 			if (it -> x == y)
 			{
 				it -> x = x;
-				if (it -> y == x) removeEdge(*it);
+				if (it -> y == x) falselyRemoveEdge(*it);
 			}
 			if (it -> y == y)
 			{
 				it -> y = x;
-				if (it -> x == x) removeEdge(*it);
+				if (it -> x == x) falselyRemoveEdge(*it);
 			}
 		}
 		n--;
@@ -136,10 +157,9 @@ public:
 			{
 
 				unionNode(it->x, it -> y);
-				removeEdge(*it);
+				falselyRemoveEdge(*it);
 			}
 		}
-	
 	}
 	void printInfo()
 	{
@@ -188,7 +208,9 @@ public:
 					constructGraph(*this, g, visit, i, j, Edge(-1,-1,0), maxLength, false);
 					g.cleanEdge(maxLength * MIN_WORM_SEG_RATE);
 					g.printInfo();
-					ret += countNumber(g);
+					int tmp_number = countNumber(g);
+					printf("Worm number: %d---------\n", tmp_number);
+					ret += tmp_number;
 				}
 		return ret;
 	}
@@ -431,8 +453,168 @@ private:
 
 	int countNumber(Graph &g)
 	{
+		while (true) {
+			double opt_cost = 0; // must be an acute angle if the combination is triggered
+			// find the next edge to expand
+			Edge* first_edge = NULL, * second_edge = NULL;
+			for (vector <Edge>::iterator it = g.edges.begin(); it != g.edges.end(); it++) {
+				if (!it->xused) 
+					testProlongation(g, &(*it), it->x, opt_cost, first_edge, second_edge);
+				if (!it->yused) 
+					testProlongation(g, &(*it), it->y, opt_cost, first_edge, second_edge);
+			}
+			printf("cost:%lf first:%d second:%d\n", opt_cost, first_edge == NULL, second_edge == NULL);
+			if (first_edge != NULL)
+				printf("first: %d %d %d %d\n", first_edge->x, first_edge->y, first_edge->xused, first_edge->yused);
+			if (second_edge!= NULL)
+				printf("second: %d %d %d %d\n", second_edge->x, second_edge->y, second_edge->xused, second_edge->yused);
 
+			// if no edge can be extend, return the counted value
+			if (first_edge == NULL) {
+				int count = 0;
+				for (vector <Edge>::iterator it = g.edges.begin(); it != g.edges.end(); it++)
+					count += it->alive;
+				return count;
+			}
+			/*
+				int count = 0;
+				for (vector <Edge>::iterator it = g.edges.begin(); it != g.edges.end(); it++)
+					count += it->alive;
+				printf("count: %d\n", count);
+				*/
+			// else combine the edges
+			int common_node = getCommonNode(*first_edge, *second_edge);
+			int first_other_node = first_edge->x + first_edge->y - common_node;
+			int second_other_node = second_edge->x + second_edge->y - common_node;
+			// decide which edge to delete (the one with a node with one degree, else select the one with ...?)
+			//TODO here, for the second condition, we simply select the second node
+			Edge* edge_to_del = NULL;
+			Edge* edge_remained = NULL;
+			//printf("common node %d\n", common_node);
+			printf("edgesize of %d:%d used info %d\n",first_other_node, getEdgelistSize(g, first_other_node), getUsedInfo(*first_edge, common_node));
+			if (getEdgelistSize(g, first_other_node) == 1 && !getUsedInfo(*first_edge, common_node)) {
+				edge_to_del = first_edge;
+				edge_remained = second_edge;
+			}
+			else {
+				edge_to_del = second_edge;
+				edge_remained = first_edge;
+			}
+			if (edge_to_del != NULL)
+				printf("to_del: %d %d %d %d\n", edge_to_del->x, edge_to_del->y, edge_to_del->xused, edge_to_del->yused);
+			if (edge_remained!= NULL)
+				printf("remained: %d %d %d %d\n", edge_remained->x, edge_remained->y, edge_remained->xused, edge_remained->yused);
+
+			// this may not be necessary to assign ``used'' information on the edge to delete
+			if (edge_to_del->x == common_node)
+				edge_to_del->xused = true;
+			else
+				edge_to_del->yused = true;
+			edge_to_del->alive = false;
+
+			if (edge_remained->x == common_node){
+				if (edge_remained->xused == true) {// x has been combined
+					//printf("Get here\n");
+					// copy edge_remained, and create a new node
+					int new_node_index = g.addNode(g.nodes[common_node]);
+					Edge new_edge(*edge_remained);
+					new_edge.x = new_node_index;
+					//TODO fix up the chaining information of edges
+					// new_edge.father = (index of) edge_to_del
+					g.addEdge(new_edge);
+				}
+				edge_remained->xused = true; // x has not been combined previously
+			} else if (edge_remained->y == common_node) {
+				if (edge_remained->yused == true) { // y has been combined
+					//printf("Get here\n");
+					int new_node_index = g.addNode(g.nodes[common_node]);
+					Edge new_edge(*edge_remained);
+					new_edge.y = new_node_index;
+					//TODO fix up the chaining information of edges
+					// new_edge.father = (index of) edge_to_del
+					g.addEdge(new_edge);
+				}
+				edge_remained->yused = true;
+			}
+		}
 		return 0;
+	}
+
+	bool getUsedInfo(const Edge& e, const int node_index) {
+		//printf("In used info, node_index:%d, e.x:%d, x_used%d; e.y:%d, y_used:%d\n", node_index, e.x, e.xused, e.y, e.yused);
+		if (e.x == node_index)
+			return e.xused;
+		else
+			return e.yused;
+	}
+
+	void putUsedInfo(Edge& e, const int node_index) {
+		if (e.x == node_index)
+			e.xused = true;
+		else if (e.y == node_index)
+			e.yused = true;
+		else
+			printf("This edge does not contain the specified node.\n");
+			exit(0);
+	}
+
+	// try prolonging the edge from ``edge_node''
+	bool testProlongation(Graph& g, Edge* it, int edge_node, double &opt_cost, Edge *&first_edge, Edge *&second_edge) {
+		bool modified = false;
+		for (Edgelist::iterator other_edge_index = g.eList[edge_node].begin(); 
+			other_edge_index != g.eList[edge_node].end();
+			other_edge_index++) {
+				// if the edge does not exist or if the other edge is itself, then continue
+				if (!g.edges[*other_edge_index].alive ||
+					&g.edges[*other_edge_index] == it)
+					continue;
+				// if the two edges have combined contacted nodes
+				if (getUsedInfo(*it, edge_node) && getUsedInfo(g.edges[*other_edge_index], edge_node))
+					continue;
+				double tmp_cost = calcCost(g, *it, g.edges[*other_edge_index]);
+				if (tmp_cost < opt_cost) {
+					first_edge = &(*it);
+					second_edge = &g.edges[*other_edge_index];
+					opt_cost = tmp_cost;
+					modified = true;
+				}
+		}
+		return modified;
+	}
+
+	int getCommonNode(const Edge& first_edge, const Edge& second_edge) {
+		int common_node = -1;
+		if ((first_edge.x == second_edge.x) || (first_edge.x == second_edge.y))
+			common_node = first_edge.x;
+		else
+			common_node = first_edge.y;
+		return common_node;
+	}
+
+	double calcCost(Graph& g, const Edge& first_edge, const Edge& second_edge) {
+		// should consider the previous combining history and edge's local information (derivative at a small distance)
+		int common_node = getCommonNode(first_edge, second_edge);
+		int first_other_node = first_edge.x + first_edge.y - common_node;
+		int second_other_node = second_edge.x + second_edge.y - common_node;
+		// calculate the cosine value of angle inbetween
+		double x1 = g.nodes[common_node].x - g.nodes[first_other_node].x ,
+			y1 = g.nodes[common_node].y - g.nodes[first_other_node].y;
+		double x2 = g.nodes[common_node].x - g.nodes[second_other_node].x ,
+			y2 = g.nodes[common_node].y - g.nodes[second_other_node].y;
+		double retVal = (x1*x2 + y1*y2) / sqrt(x1*x1+y1*y1) / sqrt(x2*x2+y2*y2);
+		// if one edge is of degree zero, then it should be considered first (let a zero calcCost if the angle is of good value)
+		// TODO may need to modify???
+		if (!getEdgelistSize(g, first_other_node) || !getEdgelistSize(g, second_other_node))
+			return -2; // optimal
+		else
+			return retVal;
+	}
+
+	int getEdgelistSize(Graph& g, int index) {
+		int count = 0;
+		for (Edgelist::iterator it = g.eList[index].begin(); it != g.eList[index].end(); it++)
+			count += g.edges[*it].alive;
+		return count;
 	}
 
 	void pretreatment(int *tot, double *sumx, double *sumx2, int *color)
@@ -539,14 +721,14 @@ void init(String fn)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	init("1.png");
+	init("1_2.png");
 	WormMat	img = imgGray;
 
 	imwrite("gray.bmp",img);
-	medianBlur(img, img, 9);
+	img.countRegion(6);
+	medianBlur(img, img, 27);
 	imwrite("blur.bmp",img);
-	img.countRegion(5);
-	WormMat newimg = img.extract(5,1,3);
+	WormMat newimg = img.extract(6,1,3);
 	namedWindow("image", CV_WINDOW_AUTOSIZE);
 	namedWindow("image2", CV_WINDOW_AUTOSIZE);
 	namedWindow("image3", CV_WINDOW_AUTOSIZE);
