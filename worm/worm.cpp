@@ -453,26 +453,51 @@ private:
 
 	void myFloodFill(Mat &a, int x, int y, int cnt, vuu &sign, int &size)
 	{
+		queue <Point> q;
+		q.push(Point(x,y));
 		sign[x][y] = cnt;
-		//printf("%d %d\n", a.at<uchar>(x,y));
-		size++;
-		for (int i = 0; i < totalDir; i++)
+		while (!q.empty())
 		{
-			int tx = x + dir[i][0];
-			int ty = y + dir[i][1];
-			if (tx >= 0 && tx <a.rows && ty >= 0 && ty < a.cols && sign[tx][ty] == 0 && a.at<uchar>(tx,ty) < BLANK)
-				myFloodFill(a, tx, ty, cnt, sign, size);
+			//printf("%d %d %d\n",x,y,cnt);
+			x = q.front().x;
+			y = q.front().y;
+			q.pop();
+			size++;
+			for (int i = 0; i < totalDir; i++)
+			{
+				int tx = x + dir[i][0];
+				int ty = y + dir[i][1];
+				if (tx >= 0 && tx <a.rows && ty >= 0 && ty < a.cols && sign[tx][ty] == 0 && a.at<uchar>(tx,ty) < BLANK)
+				{
+					sign[tx][ty] = cnt;
+					q.push(Point(tx, ty));
+				}
+			}
 		}
+		//printf("%d %d\n", a.at<uchar>(x,y));
 	}
 
 	void fillInt(vuu &sign, int x, int y, int cnt)
 	{
+		queue <Point> q;
+		q.push(Point(x,y));
 		sign[x][y] = cnt;
-		for (int i = 0; i < totalDir; i++)
+		while (!q.empty())
 		{
-			int tx = x + dir[i][0];
-			int ty = y + dir[i][1];
-			if (tx >= 0 && tx <rows && ty >= 0 && ty < cols && sign[tx][ty] != cnt && sign[tx][ty]) fillInt(sign, tx, ty, cnt);
+			//printf("%d %d %d\n",x,y,cnt);
+			x = q.front().x;
+			y = q.front().y;
+			q.pop();
+			for (int i = 0; i < totalDir; i++)
+			{
+				int tx = x + dir[i][0];
+				int ty = y + dir[i][1];
+				if (tx >= 0 && tx <rows && ty >= 0 && ty < cols && sign[tx][ty] != cnt && sign[tx][ty])
+				{
+					sign[tx][ty] = cnt;
+					q.push(Point(tx, ty));
+				}
+			}
 		}
 	}
 
@@ -514,7 +539,7 @@ void init(String fn)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	init("1_3.png");
+	init("1.png");
 	WormMat	img = imgGray;
 
 	imwrite("gray.bmp",img);
@@ -524,7 +549,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	WormMat newimg = img.extract(5,1,3);
 	namedWindow("image", CV_WINDOW_AUTOSIZE);
 	namedWindow("image2", CV_WINDOW_AUTOSIZE);
-
 	namedWindow("image3", CV_WINDOW_AUTOSIZE);
 	imshow("image2", newimg);
 	imwrite("extract.bmp",newimg);
